@@ -13,16 +13,22 @@ async def metrics_handler(request):
     """Обработчик запросов метрик"""
     try:
         metrics_data = get_metrics()
+        # Убираем charset из content_type для совместимости с aiohttp
+        content_type = CONTENT_TYPE_LATEST.split(';')[0] if ';' in CONTENT_TYPE_LATEST else CONTENT_TYPE_LATEST
         return web.Response(
             text=metrics_data.decode('utf-8'),
-            content_type=CONTENT_TYPE_LATEST
+            content_type=content_type,
+            charset='utf-8'
         )
     except Exception as e:
         logger.error(f"Ошибка при получении метрик: {e}")
+        # Убираем charset из content_type для совместимости с aiohttp
+        content_type = CONTENT_TYPE_LATEST.split(';')[0] if ';' in CONTENT_TYPE_LATEST else CONTENT_TYPE_LATEST
         return web.Response(
             text=f"# Ошибка получения метрик: {e}\n",
             status=500,
-            content_type=CONTENT_TYPE_LATEST
+            content_type=content_type,
+            charset='utf-8'
         )
 
 
