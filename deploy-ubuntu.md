@@ -26,6 +26,33 @@ chmod +x deploy.sh
 
 #### Шаг 1: Установка Docker
 
+**⚠️ Если Docker уже установлен и работает нормально, пропустите этот шаг.**
+
+**Если у вас проблемы с Docker или нужна чистая переустановка:**
+
+1. **Полное удаление старой версии Docker (если нужно):**
+```bash
+# Используйте скрипт для полного удаления
+chmod +x cleanup-docker.sh
+sudo ./cleanup-docker.sh
+```
+
+Или вручную:
+```bash
+# Остановка всех контейнеров
+sudo docker stop $(sudo docker ps -aq) 2>/dev/null || true
+sudo docker rm $(sudo docker ps -aq) 2>/dev/null || true
+
+# Удаление Docker
+sudo apt-get remove -y docker docker-engine docker.io containerd runc
+sudo apt-get purge -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo rm -rf /var/lib/docker
+sudo rm -rf /var/lib/containerd
+sudo rm -rf /etc/docker
+```
+
+2. **Установка Docker:**
+
 ```bash
 # Обновление пакетов
 sudo apt update
@@ -285,6 +312,68 @@ rm -f data/gym.db
 docker-compose build
 docker-compose up -d
 ```
+
+### Полное удаление и переустановка Docker
+
+Если у вас серьёзные проблемы с Docker (конфликты версий, ошибки установки, повреждённые данные), может потребоваться полная переустановка:
+
+**⚠️ ВНИМАНИЕ: Это удалит ВСЕ контейнеры, образы и данные Docker!**
+
+1. **Используйте автоматический скрипт (рекомендуется):**
+```bash
+chmod +x cleanup-docker.sh
+sudo ./cleanup-docker.sh
+```
+
+2. **Или удалите вручную:**
+```bash
+# Остановка всех контейнеров
+sudo docker stop $(sudo docker ps -aq) 2>/dev/null || true
+sudo docker rm $(sudo docker ps -aq) 2>/dev/null || true
+
+# Удаление всех образов
+sudo docker rmi $(sudo docker images -q) 2>/dev/null || true
+
+# Удаление всех volumes
+sudo docker volume rm $(sudo docker volume ls -q) 2>/dev/null || true
+
+# Полная очистка системы
+sudo docker system prune -a --volumes -f
+
+# Удаление пакетов Docker
+sudo apt-get remove -y docker docker-engine docker.io containerd runc
+sudo apt-get purge -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# Удаление данных и конфигурации
+sudo rm -rf /var/lib/docker
+sudo rm -rf /var/lib/containerd
+sudo rm -rf /etc/docker
+sudo rm -f /usr/local/bin/docker-compose
+
+# Очистка зависимостей
+sudo apt-get autoremove -y
+sudo apt-get autoclean
+```
+
+3. **После удаления перезагрузите систему (рекомендуется):**
+```bash
+sudo reboot
+```
+
+4. **Затем установите Docker заново:**
+```bash
+# Используйте скрипт развёртывания
+./deploy.sh
+
+# Или установите вручную (см. раздел "Установка Docker" выше)
+```
+
+**Когда нужно полное удаление:**
+- Конфликты версий Docker
+- Ошибки при установке обновлений
+- Повреждённые данные Docker
+- Необходимость чистой установки
+- Переход с одной версии Docker на другую
 
 ## Мониторинг
 

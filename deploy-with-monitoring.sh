@@ -33,6 +33,27 @@ if ! command -v docker &> /dev/null; then
     exit 0
 fi
 
+# Проверка работоспособности Docker
+if ! docker ps &> /dev/null; then
+    echo "⚠️  Docker установлен, но не работает корректно."
+    echo ""
+    echo "Возможные причины:"
+    echo "  - Нет доступа к Docker (нужно добавить в группу docker)"
+    echo "  - Проблемы с установкой Docker"
+    echo ""
+    echo "Попробуйте:"
+    echo "  1. Активировать группу docker: newgrp docker"
+    echo "  2. Если не помогло, переустановите Docker:"
+    echo "     sudo ./cleanup-docker.sh  (полное удаление)"
+    echo "     ./deploy-with-monitoring.sh  (установка заново)"
+    echo ""
+    read -p "Продолжить развёртывание? (yes/no): " -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
+        exit 1
+    fi
+fi
+
 # Проверка доступа к Docker
 if ! docker ps &> /dev/null; then
     echo "⚠️  Docker установлен, но нет доступа. Активируйте группу docker:"
