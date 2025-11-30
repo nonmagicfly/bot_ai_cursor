@@ -12,8 +12,23 @@ if ! command -v docker &> /dev/null; then
     sudo sh get-docker.sh
     sudo usermod -aG docker $USER
     rm get-docker.sh
-    echo "✅ Docker установлен. Перезайдите в систему или выполните: newgrp docker"
+    echo "✅ Docker установлен."
+    echo ""
+    echo "⚠️  ВАЖНО: Нужно активировать группу docker."
+    echo "   Выполните одну из команд:"
+    echo "   1. newgrp docker  (рекомендуется, без перезагрузки)"
+    echo "   2. Или перезайдите в систему (exit и снова ssh)"
+    echo ""
+    echo "   После этого запустите скрипт снова: ./deploy.sh"
     exit 0
+fi
+
+# Проверка доступа к Docker (может быть установлен, но нет прав)
+if ! docker ps &> /dev/null; then
+    echo "⚠️  Docker установлен, но нет доступа. Активируйте группу docker:"
+    echo "   newgrp docker"
+    echo "   Затем запустите скрипт снова: ./deploy.sh"
+    exit 1
 fi
 
 # Проверка наличия Docker Compose
