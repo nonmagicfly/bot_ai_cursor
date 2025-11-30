@@ -15,10 +15,25 @@
 ssh user@your-server-ip
 ```
 
-2. **Клонируйте репозиторий:**
+2. **Клонируйте репозиторий (или обновите существующий):**
+
+**Если репозиторий ещё не клонирован:**
 ```bash
 git clone https://github.com/nonmagicfly/bot_ai_cursor.git
 cd bot_ai_cursor
+```
+
+**Если репозиторий уже существует:**
+```bash
+cd bot_ai_cursor
+chmod +x update-repo.sh
+./update-repo.sh
+```
+
+Или вручную:
+```bash
+cd bot_ai_cursor
+git pull origin main
 ```
 
 3. **Настройте .env файл:**
