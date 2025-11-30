@@ -8,13 +8,23 @@ services:
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
       - DATABASE=./data/gym.db
+      - METRICS_PORT=8000
     volumes:
       # Сохраняем базу данных на хосте, чтобы данные не терялись при перезапуске
       - ./data:/app/data
+    ports:
+      - "${METRICS_PORT:-8000}:8000"  # Порт для метрик Prometheus (можно настроить через .env)
     # Логирование
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+    # Бот работает независимо, без зависимости от мониторинга
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 

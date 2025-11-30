@@ -64,30 +64,47 @@ fi
 # Создание папки для данных
 mkdir -p data
 
+# Проверка, нужно ли запускать мониторинг
+ENABLE_MONITORING=${ENABLE_MONITORING:-false}
+if [ "$ENABLE_MONITORING" = "true" ] || [ "$ENABLE_MONITORING" = "1" ]; then
+    echo "📊 Мониторинг включен (Prometheus + Grafana)"
+    COMPOSE_FILES="-f docker-compose.yml -f docker-compose.monitoring.yml"
+else
+    echo "📊 Мониторинг отключен (только бот)"
+    COMPOSE_FILES="-f docker-compose.yml"
+fi
+
 # Остановка и удаление старого контейнера (если есть)
 echo "🛑 Остановка старого контейнера (если запущен)..."
-docker-compose down 2>/dev/null || true
+docker-compose $COMPOSE_FILES down 2>/dev/null || true
 
 # Сборка и запуск контейнера
 echo "🔨 Сборка Docker образа..."
-docker-compose build
+docker-compose $COMPOSE_FILES build
 
 echo "🚀 Запуск контейнера..."
-docker-compose up -d
+docker-compose $COMPOSE_FILES up -d
 
 # Показ логов
 echo ""
 echo "✅ Бот запущен!"
+if [ "$ENABLE_MONITORING" = "true" ] || [ "$ENABLE_MONITORING" = "1" ]; then
+    echo ""
+    echo "📊 Мониторинг доступен:"
+    echo "   - Prometheus: http://$(hostname -I | awk '{print $1}'):${PROMETHEUS_PORT:-9090}"
+    echo "   - Grafana: http://$(hostname -I | awk '{print $1}'):${GRAFANA_PORT:-3000}"
+    echo "   - Метрики бота: http://$(hostname -I | awk '{print $1}'):${METRICS_PORT:-8000}/metrics"
+fi
 echo ""
 echo "📊 Просмотр логов:"
-echo "   docker-compose logs -f"
+echo "   docker-compose $COMPOSE_FILES logs -f"
 echo ""
-echo "🛑 Остановка бота:"
-echo "   docker-compose down"
+echo "🛑 Остановка:"
+echo "   docker-compose $COMPOSE_FILES down"
 echo ""
-echo "🔄 Перезапуск бота:"
-echo "   docker-compose restart"
+echo "🔄 Перезапуск:"
+echo "   docker-compose $COMPOSE_FILES restart"
 echo ""
 echo "📋 Статус:"
-docker-compose ps
+docker-compose $COMPOSE_FILES ps
 

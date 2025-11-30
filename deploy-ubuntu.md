@@ -87,9 +87,26 @@ DATABASE=./data/gym.db
 mkdir -p data
 ```
 
-#### Шаг 6: Сборка и запуск контейнера
+#### Шаг 6: Настройка мониторинга (опционально)
 
-**С использованием Docker Compose (рекомендуется):**
+Если хотите включить мониторинг (Prometheus + Grafana), отредактируйте `.env`:
+
+```bash
+nano .env
+```
+
+Добавьте или измените:
+```env
+ENABLE_MONITORING=true
+GRAFANA_PASSWORD=ваш_безопасный_пароль
+PROMETHEUS_PORT=9090
+GRAFANA_PORT=3000
+METRICS_PORT=8000
+```
+
+#### Шаг 7: Сборка и запуск контейнера
+
+**Вариант A: Только бот (без мониторинга)**
 
 ```bash
 # Сборка образа
@@ -100,6 +117,26 @@ docker-compose up -d
 
 # Просмотр логов
 docker-compose logs -f
+```
+
+**Вариант B: Бот + мониторинг**
+
+```bash
+# Сборка образов
+docker-compose -f docker-compose.yml -f docker-compose.monitoring.yml build
+
+# Запуск всех сервисов
+docker-compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+
+# Просмотр логов
+docker-compose -f docker-compose.yml -f docker-compose.monitoring.yml logs -f
+```
+
+**Вариант C: Использование скрипта deploy.sh (автоматически определяет мониторинг)**
+
+```bash
+# Если ENABLE_MONITORING=true в .env, запустит с мониторингом
+./deploy.sh
 ```
 
 **Или с использованием Docker напрямую:**
@@ -122,20 +159,26 @@ docker run -d \
 ### Просмотр логов
 
 ```bash
-# С Docker Compose
+# Только бот
 docker-compose logs -f
 
-# С Docker
+# Бот + мониторинг
+docker-compose -f docker-compose.yml -f docker-compose.monitoring.yml logs -f
+
+# Только бот (Docker)
 docker logs -f telegram-workout-bot
 ```
 
 ### Остановка бота
 
 ```bash
-# С Docker Compose
+# Только бот
 docker-compose down
 
-# С Docker
+# Бот + мониторинг
+docker-compose -f docker-compose.yml -f docker-compose.monitoring.yml down
+
+# Только бот (Docker)
 docker stop telegram-workout-bot
 docker rm telegram-workout-bot
 ```

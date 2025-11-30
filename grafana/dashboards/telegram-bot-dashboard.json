@@ -1,0 +1,110 @@
+{
+  "dashboard": {
+    "title": "Telegram Bot Monitoring",
+    "tags": ["telegram", "bot"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Bot Health",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "bot_health",
+            "legendFormat": "Health"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Total Users",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "bot_users_total",
+            "legendFormat": "Users"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Active Users Today",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "bot_users_active_today",
+            "legendFormat": "Active Today"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0}
+      },
+      {
+        "id": 4,
+        "title": "Operations Today",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "bot_operations_today",
+            "legendFormat": "{{operation_type}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}
+      },
+      {
+        "id": 5,
+        "title": "System CPU Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "bot_system_cpu_percent",
+            "legendFormat": "CPU %"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}
+      },
+      {
+        "id": 6,
+        "title": "System Memory Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "bot_system_memory_percent",
+            "legendFormat": "Memory %"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12}
+      },
+      {
+        "id": 7,
+        "title": "Records Today",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "bot_records_today",
+            "legendFormat": "Records"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 12}
+      },
+      {
+        "id": 8,
+        "title": "Bot Uptime",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "bot_uptime_seconds",
+            "legendFormat": "Uptime"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 12}
+      }
+    ],
+    "refresh": "10s",
+    "schemaVersion": 27,
+    "version": 1
+  }
+}
+
+

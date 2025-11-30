@@ -4,7 +4,9 @@ Telegram-бот для записи силовых упражнений
 """
 import os
 import logging
-from datetime import datetime
+import time
+import asyncio
+from datetime import datetime, date
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
@@ -13,6 +15,11 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 import aiosqlite
+from metrics import (
+    users_total, users_active_today, operations_total, operations_today,
+    programs_total, programs_active, records_total, records_today,
+    request_duration, request_errors, update_system_metrics
+)
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -42,6 +49,135 @@ class WorkoutStates(StatesGroup):
     waiting_for_program_name = State()
     waiting_for_program_text = State()
     waiting_for_weight = State()
+
+
+# Функции для работы с пользователями
+async def register_user(user_id: int, username: str = None, first_name: str = None, last_name: str = None):
+    """Регистрация или обновление информации о пользователе"""
+    try:
+        async with aiosqlite.connect(DATABASE_PATH) as db:
+            await db.execute('''
+                INSERT OR REPLACE INTO users (user_id, username, first_name, last_name, last_activity)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ''', (user_id, username, first_name, last_name))
+            await db.commit()
+    except Exception as e:
+        logger.error(f"Ошибка при регистрации пользователя: {e}")
+
+
+async def log_operation(user_id: int, operation_type: str):
+    """Логирование операции пользователя"""
+    try:
+        async with aiosqlite.connect(DATABASE_PATH) as db:
+            await db.execute('''
+                INSERT INTO operations (user_id, operation_type)
+                VALUES (?, ?)
+            ''', (user_id, operation_type))
+            await db.commit()
+    except Exception as e:
+        logger.error(f"Ошибка при логировании операции: {e}")
+
+
+# Декоратор для отслеживания операций
+def track_operation(operation_type: str):
+    """Декоратор для отслеживания операций и метрик"""
+    def decorator(func):
+        async def wrapper(*args, **kwargs):
+            # Получаем user_id из аргументов
+            user_id = None
+            for arg in args:
+                if isinstance(arg, Message):
+                    user_id = arg.from_user.id
+                    # Регистрируем пользователя
+                    await register_user(
+                        user_id=arg.from_user.id,
+                        username=arg.from_user.username,
+                        first_name=arg.from_user.first_name,
+                        last_name=arg.from_user.last_name
+                    )
+                    break
+                elif isinstance(arg, CallbackQuery):
+                    user_id = arg.from_user.id
+                    await register_user(
+                        user_id=arg.from_user.id,
+                        username=arg.from_user.username,
+                        first_name=arg.from_user.first_name,
+                        last_name=arg.from_user.last_name
+                    )
+                    break
+            
+            # Логируем операцию
+            if user_id:
+                await log_operation(user_id, operation_type)
+                operations_total.labels(operation_type=operation_type).inc()
+            
+            # Отслеживаем время выполнения
+            start_time = time.time()
+            try:
+                result = await func(*args, **kwargs)
+                duration = time.time() - start_time
+                request_duration.labels(handler=operation_type).observe(duration)
+                return result
+            except Exception as e:
+                request_errors.labels(error_type=type(e).__name__).inc()
+                raise
+        
+        return wrapper
+    return decorator
+
+
+async def update_metrics():
+    """Обновление метрик из базы данных"""
+    try:
+        async with aiosqlite.connect(DATABASE_PATH) as db:
+            # Пользователи
+            cursor = await db.execute('SELECT COUNT(*) FROM users')
+            total_users = (await cursor.fetchone())[0]
+            users_total.set(total_users)
+            
+            # Активные пользователи за сегодня
+            today = date.today().isoformat()
+            cursor = await db.execute('''
+                SELECT COUNT(DISTINCT user_id) FROM operations 
+                WHERE date(created_at) = ?
+            ''', (today,))
+            active_today = (await cursor.fetchone())[0]
+            users_active_today.set(active_today)
+            
+            # Программы
+            cursor = await db.execute('SELECT COUNT(*) FROM programs')
+            total_programs = (await cursor.fetchone())[0]
+            programs_total.set(total_programs)
+            
+            cursor = await db.execute('SELECT COUNT(*) FROM programs WHERE active = 1')
+            active_programs = (await cursor.fetchone())[0]
+            programs_active.set(active_programs)
+            
+            # Записи
+            cursor = await db.execute('SELECT COUNT(*) FROM records')
+            total_records = (await cursor.fetchone())[0]
+            records_total.set(total_records)
+            
+            cursor = await db.execute('SELECT COUNT(*) FROM records WHERE date = ?', (today,))
+            records_today_count = (await cursor.fetchone())[0]
+            records_today.set(records_today_count)
+            
+            # Операции за сегодня
+            cursor = await db.execute('''
+                SELECT operation_type, COUNT(*) 
+                FROM operations 
+                WHERE date(created_at) = ?
+                GROUP BY operation_type
+            ''', (today,))
+            async for row in cursor:
+                op_type, count = row
+                operations_today.labels(operation_type=op_type).set(count)
+            
+            # Системные метрики
+            update_system_metrics()
+            
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении метрик: {e}")
 
 
 # Функции для работы с БД
@@ -188,6 +324,7 @@ async def init_db():
 
 # Обработчики команд
 @dp.message(Command("start"))
+@track_operation("start")
 async def cmd_start(message: Message):
     """Обработчик команды /start"""
     welcome_text = """
@@ -214,6 +351,7 @@ async def cmd_start(message: Message):
 
 
 @dp.message(Command("newprogram"))
+@track_operation("newprogram")
 async def cmd_newprogram(message: Message, state: FSMContext):
     """Обработчик команды /newprogram"""
     await message.answer(
@@ -320,6 +458,7 @@ async def process_program_text(message: Message, state: FSMContext):
 
 
 @dp.message(Command("startworkout"))
+@track_operation("startworkout")
 async def cmd_startworkout(message: Message, state: FSMContext):
     """Обработчик команды /startworkout - выбор активной программы для тренировки"""
     # Очищаем предыдущее состояние, если было
@@ -356,6 +495,17 @@ async def cmd_startworkout(message: Message, state: FSMContext):
 async def process_program_selection(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора активной программы через инлайн-кнопку"""
     await callback.answer()
+    
+    # Регистрируем пользователя и логируем операцию
+    user_id = callback.from_user.id
+    await register_user(
+        user_id=user_id,
+        username=callback.from_user.username,
+        first_name=callback.from_user.first_name,
+        last_name=callback.from_user.last_name
+    )
+    await log_operation(user_id, "select_program")
+    operations_total.labels(operation_type="select_program").inc()
     
     # Извлекаем ID программы из callback_data
     try:
@@ -530,6 +680,8 @@ async def process_weight(message: Message, state: FSMContext):
     # Сохраняем запись
     try:
         await save_record(program_id, exercise_id, current_set, weight)
+        # Логируем операцию сохранения записи
+        await log_operation(message.from_user.id, "save_record")
     except Exception as e:
         logger.error(f"Ошибка при сохранении записи: {e}")
         await message.answer("❌ Ошибка при сохранении записи. Попробуйте снова.")
@@ -554,6 +706,7 @@ async def process_weight(message: Message, state: FSMContext):
 
 
 @dp.message(Command("programs"))
+@track_operation("programs")
 async def cmd_programs(message: Message):
     """Обработчик команды /programs - показать список всех программ"""
     programs = await get_all_programs()
@@ -583,6 +736,7 @@ async def cmd_programs(message: Message):
 
 
 @dp.message(Command("deleteall"))
+@track_operation("deleteall")
 async def cmd_deleteall(message: Message, state: FSMContext):
     """Обработчик команды /deleteall - удаление всех программ"""
     # Создаём инлайн-клавиатуру с подтверждением
@@ -630,6 +784,7 @@ async def cancel_delete_all(callback: CallbackQuery):
 
 
 @dp.message(Command("report"))
+@track_operation("report")
 async def cmd_report(message: Message):
     """Обработчик команды /report"""
     keyboard = ReplyKeyboardMarkup(
@@ -747,11 +902,33 @@ async def handle_unknown_command(message: Message, state: FSMContext):
         await message.answer(welcome_text)
 
 
+async def periodic_metrics_update():
+    """Периодическое обновление метрик"""
+    while True:
+        try:
+            await asyncio.sleep(30)  # Обновляем каждые 30 секунд
+            await update_metrics()
+        except Exception as e:
+            logger.error(f"Ошибка при обновлении метрик: {e}")
+
+
 async def main():
     """Основная функция запуска бота"""
     try:
         # Инициализация БД
         await init_db()
+        
+        # Запуск HTTP сервера для метрик
+        from metrics_server import run_metrics_server
+        metrics_port = int(os.getenv('METRICS_PORT', '8000'))
+        metrics_runner = await run_metrics_server(metrics_port)
+        logger.info(f"HTTP сервер метрик запущен на порту {metrics_port}")
+        
+        # Запуск периодического обновления метрик
+        metrics_task = asyncio.create_task(periodic_metrics_update())
+        
+        # Первоначальное обновление метрик
+        await update_metrics()
         
         logger.info("Бот запущен...")
         
@@ -762,8 +939,17 @@ async def main():
     except Exception as e:
         logger.error(f"Критическая ошибка: {e}", exc_info=True)
         raise
+    finally:
+        # Остановка сервера метрик
+        if 'metrics_runner' in locals():
+            await metrics_runner.cleanup()
+        if 'metrics_task' in locals():
+            metrics_task.cancel()
 
 
 if __name__ == '__main__':
     import asyncio
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Завершение работы...")

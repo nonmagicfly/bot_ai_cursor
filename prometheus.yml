@@ -1,0 +1,28 @@
+# Конфигурация Prometheus для мониторинга Telegram бота
+global:
+  scrape_interval: 15s  # Интервал сбора метрик
+  evaluation_interval: 15s  # Интервал оценки правил
+  external_labels:
+    monitor: 'telegram-bot-monitor'
+
+# Конфигурация сбора метрик
+scrape_configs:
+  # Метрики бота
+  - job_name: 'telegram-bot'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    static_configs:
+      - targets: ['telegram-bot:8000']  # Имя сервиса из docker-compose
+        labels:
+          service: 'telegram-bot'
+          environment: 'production'
+    # Retry при недоступности
+    metrics_path: '/metrics'
+    scheme: 'http'
+
+  # Метрики самого Prometheus
+  - job_name: 'prometheus'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:9090']
+

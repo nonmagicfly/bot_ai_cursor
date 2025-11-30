@@ -38,6 +38,32 @@ def init_database():
     cursor = conn.cursor()
     
     try:
+        # Создание таблицы users
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER UNIQUE NOT NULL,
+                username TEXT,
+                first_name TEXT,
+                last_name TEXT,
+                registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        print("[OK] Таблица 'users' создана")
+        
+        # Создание таблицы operations для отслеживания операций
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS operations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                operation_type TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+            )
+        ''')
+        print("[OK] Таблица 'operations' создана")
+        
         # Создание таблицы programs
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS programs (
@@ -105,12 +131,35 @@ def init_database():
             ON programs(active)
         ''')
         
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_users_user_id 
+            ON users(user_id)
+        ''')
+        
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_operations_user_id 
+            ON operations(user_id)
+        ''')
+        
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_operations_created_at 
+            ON operations(created_at)
+        ''')
+        
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_operations_type 
+            ON operations(operation_type)
+        ''')
+        
         print("[OK] Индексы созданы")
         
         # Сохранение изменений
         conn.commit()
         
         # Проверка существующих данных
+        cursor.execute('SELECT COUNT(*) FROM users')
+        users_count = cursor.fetchone()[0]
+        
         cursor.execute('SELECT COUNT(*) FROM programs')
         programs_count = cursor.fetchone()[0]
         
@@ -122,6 +171,7 @@ def init_database():
         
         print("\n" + "=" * 50)
         print("[OK] База данных успешно инициализирована!")
+        print(f"   Пользователей в базе: {users_count}")
         print(f"   Программ в базе: {programs_count}")
         print(f"   Упражнений в базе: {exercises_count}")
         print(f"   Записей в базе: {records_count}")
