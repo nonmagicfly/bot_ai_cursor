@@ -6,6 +6,7 @@ import os
 import logging
 import time
 import asyncio
+from functools import wraps
 from datetime import datetime, date
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, F
@@ -82,9 +83,12 @@ async def log_operation(user_id: int, operation_type: str):
 def track_operation(operation_type: str):
     """Декоратор для отслеживания операций и метрик"""
     def decorator(func):
+        @wraps(func)
         async def wrapper(*args, **kwargs):
-            # Получаем user_id из аргументов
+            # Получаем user_id из аргументов (args и kwargs)
             user_id = None
+            
+            # Проверяем args
             for arg in args:
                 if isinstance(arg, Message):
                     user_id = arg.from_user.id
@@ -106,6 +110,28 @@ def track_operation(operation_type: str):
                     )
                     break
             
+            # Проверяем kwargs (на случай, если aiogram передает через dependency injection)
+            if not user_id:
+                for key, value in kwargs.items():
+                    if isinstance(value, Message):
+                        user_id = value.from_user.id
+                        await register_user(
+                            user_id=value.from_user.id,
+                            username=value.from_user.username,
+                            first_name=value.from_user.first_name,
+                            last_name=value.from_user.last_name
+                        )
+                        break
+                    elif isinstance(value, CallbackQuery):
+                        user_id = value.from_user.id
+                        await register_user(
+                            user_id=value.from_user.id,
+                            username=value.from_user.username,
+                            first_name=value.from_user.first_name,
+                            last_name=value.from_user.last_name
+                        )
+                        break
+            
             # Логируем операцию
             if user_id:
                 await log_operation(user_id, operation_type)
@@ -114,6 +140,7 @@ def track_operation(operation_type: str):
             # Отслеживаем время выполнения
             start_time = time.time()
             try:
+                # Передаем все аргументы как есть (включая возможные dependency injection аргументы)
                 result = await func(*args, **kwargs)
                 duration = time.time() - start_time
                 request_duration.labels(handler=operation_type).observe(duration)
@@ -122,6 +149,8 @@ def track_operation(operation_type: str):
                 request_errors.labels(error_type=type(e).__name__).inc()
                 raise
         
+        # Сохраняем оригинальную сигнатуру функции
+        wrapper.__signature__ = func.__signature__ if hasattr(func, '__signature__') else None
         return wrapper
     return decorator
 
